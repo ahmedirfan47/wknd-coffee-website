@@ -1,157 +1,594 @@
-import { PrismaClient, BannerType, CouponType } from '@prisma/client';
+import { PrismaClient } from '@prisma/client';
 import bcrypt from 'bcryptjs';
 
-const prisma = new PrismaClient();
-
-const img = (id: string) =>
-  'https://images.unsplash.com/' + id + '?q=80&w=900&auto=format&fit=crop';
+const db = new PrismaClient();
 
 async function main() {
-  console.log('Seeding Pink Pistachio database...');
+  console.log('🌱 Seeding WKND Coffee database...');
 
-  const adminEmail = process.env.ADMIN_EMAIL ?? 'admin@pinkpistachio.pk';
-  const adminPassword = process.env.ADMIN_PASSWORD ?? 'ChangeThisPassword123!';
-  const hashed = await bcrypt.hash(adminPassword, 10);
+  // Clear all existing data in correct order
+  await db.notification.deleteMany();
+  await db.newsletterSubscriber.deleteMany();
+  await db.contactMessage.deleteMany();
+  await db.coupon.deleteMany();
+  await db.banner.deleteMany();
+  await db.orderItem.deleteMany();
+  await db.order.deleteMany();
+  await db.product.deleteMany();
+  await db.category.deleteMany();
+  await db.siteSettings.deleteMany();
+  await db.user.deleteMany();
 
-  await prisma.user.upsert({
-    where: { email: adminEmail },
-    update: {},
-    create: {
-      name: process.env.ADMIN_NAME ?? 'Pink Pistachio Admin',
-      email: adminEmail,
+  // ── Admin user ──────────────────────────────────────────
+  const hashed = await bcrypt.hash('WkndAdmin2026!', 12);
+  await db.user.create({
+    data: {
+      name:     'WKND Admin',
+      email:    'admin@wkndcoffee.pk',
       password: hashed,
-      role: 'ADMIN',
-      phone: '+92 300 1234567',
+      role:     'ADMIN',
+      phone:    '+92 300 0000000',
     },
   });
+  console.log('✅ Admin user created');
 
-  await prisma.siteSettings.upsert({
-    where: { id: 'settings' },
-    update: {},
-    create: {
-      id: 'settings',
-      siteName: 'Pink Pistachio',
-      tagline: 'Boutique Cafe & Patisserie',
-      primaryPhone: '+92 300 1234567',
-      primaryEmail: 'hello@pinkpistachio.pk',
-      whatsappNumber: '+92 300 1234567',
-      instagramUrl: 'https://www.instagram.com/pistachio.pink',
-      facebookUrl: 'https://www.facebook.com/pistachio.pink',
-      deliveryFee: 150,
-      freeDeliveryMin: 3000,
-      aboutText: 'Pink Pistachio began with a simple idea: bring a little European patisserie magic to Lahore, wrapped in soft pink and pistachio green. From our kitchens in DHA Raya and Gulberg, we bake fresh every morning - vintage butter cream cakes, flaky croissants, artisanal sourdough, and an all-day menu of brunch, salads, and savoury bites. Every plate is made with the same obsession for detail that goes into our interiors: pretty, considered, and made to be shared.',
+  // ── Site settings ────────────────────────────────────────
+  await db.siteSettings.create({
+    data: {
+      id:              'settings',
+      siteName:        'WKND Coffee',
+      tagline:         'Your Weekend, Every Day.',
+      primaryPhone:    '+92 300 0000000',
+      primaryEmail:    'hello@wkndcoffee.pk',
+      whatsappNumber:  '+923000000000',
+      deliveryFee:     150,
+      freeDeliveryMin: 2500,
+      instagramUrl:    'https://www.instagram.com/wkndcoffeeraya',
+      facebookUrl:     'https://www.facebook.com/wkndcoffeeraya',
+      aboutText:
+        'WKND Coffee started with one obsession: great coffee. Set in the heart of DHA Raya, we built a space where every day feels like a long, unhurried weekend — good espresso, food worth sitting down for, and a room that earns your time. We source with care, brunch without a clock, and serve everything with the kind of attention that makes the difference between a good cafe and your regular.',
     },
   });
+  console.log('✅ Site settings created');
 
-  const categoriesData = [
-    { name: 'Specialty Coffee', slug: 'specialty-coffee', description: 'Espresso-based drinks and signature lattes, roasted and brewed in house.', image: img('photo-1495474472287-4d71bcdd2085'), position: 1 },
-    { name: 'Croissants & Pastries', slug: 'croissants-pastries', description: 'Laminated, butter-rich pastries baked fresh every morning.', image: img('photo-1555507036-ab1f4038808a'), position: 2 },
-    { name: 'Signature Cakes', slug: 'signature-cakes', description: 'Vintage butter cream cakes and patisserie classics, by the slice or whole.', image: img('photo-1565958011703-44f9829ba187'), position: 3 },
-    { name: 'Artisan Bread', slug: 'artisan-bread', description: 'Slow-fermented sourdough and European-style loaves.', image: img('photo-1549931319-a545d471dad4'), position: 4 },
-    { name: 'All-Day Brunch', slug: 'all-day-brunch', description: 'Hearty brunch plates served from open to close.', image: img('photo-1482049016688-2d3e1b311543'), position: 5 },
-    { name: 'Sandwiches & Baguettes', slug: 'sandwiches-baguettes', description: 'Stacked sandwiches and freshly baked baguettes.', image: img('photo-1481833761820-0509d3217039'), position: 6 },
-    { name: 'Seasonal Salads', slug: 'seasonal-salads', description: 'Crisp, colourful salads made with seasonal produce.', image: img('photo-1551782450-a2132b4ba21d'), position: 7 },
-    { name: 'Savoury Bites', slug: 'savoury-bites', description: 'Puffs, sticks and loaded fries for sharing.', image: img('photo-1573080496219-bb080dd4f877'), position: 8 },
-    { name: 'Cupcakes & Cookies', slug: 'cupcakes-cookies', description: 'Pretty little bakes - cupcakes, cookies and macarons.', image: img('photo-1517248135467-4c7edcad34c4'), position: 9 },
-  ];
+  // ── Categories ───────────────────────────────────────────
+  const [espresso, coldBrew, brunch, bites, pastries, smoothies] =
+    await Promise.all([
+      db.category.create({
+        data: {
+          name:        'Espresso Bar',
+          slug:        'espresso-bar',
+          description: 'Single origin espresso drinks crafted with precision.',
+          image:       'https://images.unsplash.com/photo-1510707577719-ae7c14805e3a?q=80&w=600',
+          position:    1,
+          isActive:    true,
+        },
+      }),
+      db.category.create({
+        data: {
+          name:        'Cold Brew & Iced',
+          slug:        'cold-brew-iced',
+          description: 'Chilled, refreshing coffee for warm Lahore days.',
+          image:       'https://images.unsplash.com/photo-1461023058943-07fcbe16d735?q=80&w=600',
+          position:    2,
+          isActive:    true,
+        },
+      }),
+      db.category.create({
+        data: {
+          name:        'All-Day Brunch',
+          slug:        'all-day-brunch',
+          description: 'Brunch served all day — because weekends have no schedule.',
+          image:       'https://images.unsplash.com/photo-1533089860892-a7c6f0a88666?q=80&w=600',
+          position:    3,
+          isActive:    true,
+        },
+      }),
+      db.category.create({
+        data: {
+          name:        'Light Bites',
+          slug:        'light-bites',
+          description: 'Sandwiches, salads and small plates done properly.',
+          image:       'https://images.unsplash.com/photo-1555507036-ab1f4038808a?q=80&w=600',
+          position:    4,
+          isActive:    true,
+        },
+      }),
+      db.category.create({
+        data: {
+          name:        'Pastries & Bakes',
+          slug:        'pastries-bakes',
+          description: 'Baked fresh every morning in our kitchen.',
+          image:       'https://images.unsplash.com/photo-1517433670267-08bbd4be890f?q=80&w=600',
+          position:    5,
+          isActive:    true,
+        },
+      }),
+      db.category.create({
+        data: {
+          name:        'Smoothies & Shakes',
+          slug:        'smoothies-shakes',
+          description: 'Blended fruit smoothies and thick milkshakes.',
+          image:       'https://images.unsplash.com/photo-1553530666-ba11a7da3888?q=80&w=600',
+          position:    6,
+          isActive:    true,
+        },
+      }),
+    ]);
+  console.log('✅ Categories created');
 
-  const categories: Record<string, string> = {};
-  for (const c of categoriesData) {
-    const created = await prisma.category.upsert({
-      where: { slug: c.slug },
-      update: c,
-      create: c,
-    });
-    categories[c.slug] = created.id;
-  }
+  // ── Image placeholders ───────────────────────────────────
+  const coffeeImg    = 'https://images.unsplash.com/photo-1509042239860-f550ce710b93?q=80&w=600';
+  const icedImg      = 'https://images.unsplash.com/photo-1461023058943-07fcbe16d735?q=80&w=600';
+  const brunchImg    = 'https://images.unsplash.com/photo-1533089860892-a7c6f0a88666?q=80&w=600';
+  const toastImg     = 'https://images.unsplash.com/photo-1603046891726-36bfd957e0bf?q=80&w=600';
+  const sandwichImg  = 'https://images.unsplash.com/photo-1553909489-cd47e0907980?q=80&w=600';
+  const croissantImg = 'https://images.unsplash.com/photo-1555507036-ab1f4038808a?q=80&w=600';
+  const cakeImg      = 'https://images.unsplash.com/photo-1578985545062-69928b1d9587?q=80&w=600';
+  const smoothieImg  = 'https://images.unsplash.com/photo-1553530666-ba11a7da3888?q=80&w=600';
 
-  const productsData = [
-    { name: 'Pistachio Latte', slug: 'pistachio-latte', description: 'Our signature drink - double espresso, steamed milk and house-made pistachio cream, finished with crushed pistachios.', price: 950, compareAtPrice: null, images: [img('photo-1517701604599-bb29b565090c')], categorySlug: 'specialty-coffee', isFeatured: true, isAvailable: true, stock: 50, sku: null, tags: ['signature', 'bestseller'] },
-    { name: 'Rose Cardamom Cappuccino', slug: 'rose-cardamom-cappuccino', description: 'Velvety cappuccino infused with cardamom and a whisper of rose syrup.', price: 850, compareAtPrice: null, images: [img('photo-1572442388796-11668a67e53d')], categorySlug: 'specialty-coffee', isFeatured: true, isAvailable: true, stock: 50, sku: null, tags: ['signature'] },
-    { name: 'Classic Cappuccino', slug: 'classic-cappuccino', description: 'Double shot espresso topped with silky steamed milk foam.', price: 750, compareAtPrice: null, images: [img('photo-1572442388796-11668a67e53d')], categorySlug: 'specialty-coffee', isFeatured: false, isAvailable: true, stock: 50, sku: null, tags: [] },
-    { name: 'Cafe Latte', slug: 'cafe-latte', description: 'Smooth espresso balanced with steamed milk and a light layer of foam.', price: 780, compareAtPrice: null, images: [img('photo-1485808191679-5f86510681a2')], categorySlug: 'specialty-coffee', isFeatured: false, isAvailable: true, stock: 50, sku: null, tags: [] },
-    { name: 'Iced Spanish Latte', slug: 'iced-spanish-latte', description: 'Espresso poured over ice with sweet condensed milk for a rich, cooling sip.', price: 850, compareAtPrice: null, images: [img('photo-1461023058943-07fcbe16d735')], categorySlug: 'specialty-coffee', isFeatured: true, isAvailable: true, stock: 50, sku: null, tags: ['iced'] },
-    { name: 'Matcha Latte', slug: 'matcha-latte', description: 'Ceremonial-grade matcha whisked with steamed milk, lightly sweetened.', price: 900, compareAtPrice: null, images: [img('photo-1515823064-d6e0c04616a7')], categorySlug: 'specialty-coffee', isFeatured: false, isAvailable: true, stock: 50, sku: null, tags: ['iced'] },
-    { name: 'Cold Brew', slug: 'cold-brew', description: 'Slow-steeped for 18 hours for a smooth, low-acid finish.', price: 800, compareAtPrice: null, images: [img('photo-1461023058943-07fcbe16d735')], categorySlug: 'specialty-coffee', isFeatured: false, isAvailable: true, stock: 50, sku: null, tags: ['iced'] },
-    { name: 'Hot Chocolate', slug: 'hot-chocolate', description: 'Rich Belgian chocolate melted into steamed milk, topped with whipped cream.', price: 820, compareAtPrice: null, images: [img('photo-1542990253-0d0f5be5f0ed')], categorySlug: 'specialty-coffee', isFeatured: false, isAvailable: true, stock: 50, sku: null, tags: [] },
-    { name: 'Butter Croissant', slug: 'butter-croissant', description: 'Classic French croissant, laminated over 3 days for a shatter-crisp finish.', price: 450, compareAtPrice: null, images: [img('photo-1555507036-ab1f4038808a')], categorySlug: 'croissants-pastries', isFeatured: true, isAvailable: true, stock: 30, sku: null, tags: ['bestseller'] },
-    { name: 'Almond Croissant', slug: 'almond-croissant', description: 'Twice-baked croissant filled with almond cream and topped with toasted almonds.', price: 600, compareAtPrice: null, images: [img('photo-1623334044303-241021148842')], categorySlug: 'croissants-pastries', isFeatured: true, isAvailable: true, stock: 30, sku: null, tags: [] },
-    { name: 'Pistachio Croissant', slug: 'pistachio-croissant', description: 'Filled with house pistachio cream and dusted with crushed pistachios - our most-loved bake.', price: 650, compareAtPrice: null, images: [img('photo-1623334044303-241021148842')], categorySlug: 'croissants-pastries', isFeatured: true, isAvailable: true, stock: 30, sku: null, tags: ['signature', 'bestseller'] },
-    { name: 'Pain au Chocolat', slug: 'pain-au-chocolat', description: 'Buttery laminated pastry wrapped around dark chocolate batons.', price: 500, compareAtPrice: null, images: [img('photo-1555507036-ab1f4038808a')], categorySlug: 'croissants-pastries', isFeatured: false, isAvailable: true, stock: 30, sku: null, tags: [] },
-    { name: 'Cinnamon Roll', slug: 'cinnamon-roll', description: 'Soft brioche swirl with cinnamon sugar and cream cheese glaze.', price: 550, compareAtPrice: null, images: [img('photo-1509365465985-25d11c17e812')], categorySlug: 'croissants-pastries', isFeatured: false, isAvailable: true, stock: 30, sku: null, tags: [] },
-    { name: 'Danish Pastry', slug: 'danish-pastry', description: 'Flaky pastry filled with seasonal fruit compote and vanilla custard.', price: 520, compareAtPrice: null, images: [img('photo-1509440159596-0249088772ff')], categorySlug: 'croissants-pastries', isFeatured: false, isAvailable: true, stock: 30, sku: null, tags: [] },
-    { name: 'VBC Chocolate Ganache', slug: 'vbcc-chocolate-ganache', description: 'Layers of chocolate sponge, dark ganache and vintage-style buttercream piping.', price: 6990, compareAtPrice: null, images: [img('photo-1565958011703-44f9829ba187')], categorySlug: 'signature-cakes', isFeatured: true, isAvailable: true, stock: 10, sku: null, tags: ['signature', 'whole-cake'] },
-    { name: 'VBC Victorian Sponge', slug: 'vbcc-victorian-sponge', description: 'Classic vanilla sponge with raspberry jam and silky buttercream, finished in delicate vintage piping.', price: 6990, compareAtPrice: null, images: [img('photo-1535141192574-5d4897c12636')], categorySlug: 'signature-cakes', isFeatured: true, isAvailable: true, stock: 10, sku: null, tags: ['signature', 'whole-cake'] },
-    { name: 'Pistachio Rose Cake Slice', slug: 'pistachio-rose-slice', description: 'Pistachio sponge, rose cream and a delicate pistachio crumb - by the slice.', price: 950, compareAtPrice: null, images: [img('photo-1488477181946-6428a0291777')], categorySlug: 'signature-cakes', isFeatured: true, isAvailable: true, stock: 20, sku: null, tags: ['signature'] },
-    { name: 'Classic Tiramisu', slug: 'classic-tiramisu', description: 'Espresso-soaked ladyfingers layered with mascarpone cream and cocoa.', price: 850, compareAtPrice: null, images: [img('photo-1571877227200-a0d98ea607e9')], categorySlug: 'signature-cakes', isFeatured: true, isAvailable: true, stock: 20, sku: null, tags: ['bestseller'] },
-    { name: 'Classic Cheesecake Slice', slug: 'classic-cheesecake', description: 'Baked New York-style cheesecake on a buttery biscuit base.', price: 900, compareAtPrice: null, images: [img('photo-1567171466295-4afa63d45416')], categorySlug: 'signature-cakes', isFeatured: false, isAvailable: true, stock: 20, sku: null, tags: [] },
-    { name: 'Red Velvet Slice', slug: 'red-velvet-slice', description: 'Cocoa-rich red velvet sponge with cream cheese frosting.', price: 850, compareAtPrice: null, images: [img('photo-1586985289688-ca3cf47d3e6e')], categorySlug: 'signature-cakes', isFeatured: false, isAvailable: true, stock: 20, sku: null, tags: [] },
-    { name: 'Classic Sourdough Loaf', slug: 'classic-sourdough', description: '48-hour fermented sourdough with a deep golden crust - our most-loved loaf in DHA.', price: 1100, compareAtPrice: null, images: [img('photo-1549931319-a545d471dad4')], categorySlug: 'artisan-bread', isFeatured: true, isAvailable: true, stock: 15, sku: null, tags: ['bestseller'] },
-    { name: 'Focaccia', slug: 'focaccia', description: 'Olive-oil rich focaccia topped with rosemary and sea salt.', price: 850, compareAtPrice: null, images: [img('photo-1589367920969-ab8e050bbb04')], categorySlug: 'artisan-bread', isFeatured: false, isAvailable: true, stock: 15, sku: null, tags: [] },
-    { name: 'Multigrain Loaf', slug: 'multigrain-loaf', description: 'Hearty multigrain bread loaded with seeds and whole grains.', price: 1000, compareAtPrice: null, images: [img('photo-1586444248902-2f64eddc13df')], categorySlug: 'artisan-bread', isFeatured: false, isAvailable: true, stock: 15, sku: null, tags: [] },
-    { name: 'Garlic Baguette', slug: 'garlic-baguette', description: 'Crisp baguette brushed with garlic butter and herbs.', price: 650, compareAtPrice: null, images: [img('photo-1608198093002-ad4e005484ec')], categorySlug: 'artisan-bread', isFeatured: false, isAvailable: true, stock: 20, sku: null, tags: [] },
-    { name: 'Pink Pistachio Breakfast', slug: 'pink-pistachio-breakfast', description: 'Two eggs your way, grilled tomato, hash browns, sauteed mushrooms, baked beans and toasted sourdough.', price: 1450, compareAtPrice: null, images: [img('photo-1482049016688-2d3e1b311543')], categorySlug: 'all-day-brunch', isFeatured: true, isAvailable: true, stock: 50, sku: null, tags: ['signature'] },
-    { name: 'Avocado Toast', slug: 'avocado-toast', description: 'Smashed avocado on sourdough with chili flakes, lemon and a poached egg.', price: 1100, compareAtPrice: null, images: [img('photo-1525351484163-7529414344d8')], categorySlug: 'all-day-brunch', isFeatured: true, isAvailable: true, stock: 50, sku: null, tags: ['bestseller'] },
-    { name: 'Shakshuka', slug: 'shakshuka', description: 'Eggs poached in a spiced tomato and pepper sauce, served with toasted bread.', price: 1250, compareAtPrice: null, images: [img('photo-1590412200988-a436970781fa')], categorySlug: 'all-day-brunch', isFeatured: false, isAvailable: true, stock: 50, sku: null, tags: [] },
-    { name: 'French Toast', slug: 'french-toast', description: 'Brioche French toast with seasonal berries, mascarpone and maple syrup.', price: 1150, compareAtPrice: null, images: [img('photo-1484723091739-30a097e8f929')], categorySlug: 'all-day-brunch', isFeatured: false, isAvailable: true, stock: 50, sku: null, tags: [] },
-    { name: 'Belgian Waffles', slug: 'belgian-waffles', description: 'Crisp waffles with whipped cream, berries and pistachio crumble.', price: 1200, compareAtPrice: null, images: [img('photo-1562376552733-04b8f1f8b3c8')], categorySlug: 'all-day-brunch', isFeatured: false, isAvailable: true, stock: 50, sku: null, tags: [] },
-    { name: 'Salted Beef Baguette', slug: 'salted-beef-baguette', description: 'Slow-cooked salted beef, pickles and mustard mayo in a crisp baguette.', price: 1450, compareAtPrice: null, images: [img('photo-1481833761820-0509d3217039')], categorySlug: 'sandwiches-baguettes', isFeatured: true, isAvailable: true, stock: 50, sku: null, tags: ['signature', 'bestseller'] },
-    { name: 'Grilled Chicken and Brie', slug: 'grilled-chicken-brie', description: 'Grilled chicken breast, melted brie, rocket and cranberry on sourdough.', price: 1350, compareAtPrice: null, images: [img('photo-1539252554935-80c7c0d49bdd')], categorySlug: 'sandwiches-baguettes', isFeatured: false, isAvailable: true, stock: 50, sku: null, tags: [] },
-    { name: 'Caprese Panini', slug: 'caprese-panini', description: 'Fresh mozzarella, tomato, basil and balsamic glaze, pressed in focaccia.', price: 1200, compareAtPrice: null, images: [img('photo-1521305916504-4a1121188589')], categorySlug: 'sandwiches-baguettes', isFeatured: false, isAvailable: true, stock: 50, sku: null, tags: [] },
-    { name: 'Smoked Salmon Bagel', slug: 'smoked-salmon-bagel', description: 'Toasted bagel with cream cheese, smoked salmon, capers and dill.', price: 1550, compareAtPrice: null, images: [img('photo-1592961630841-9c0a5a4a9e25')], categorySlug: 'sandwiches-baguettes', isFeatured: false, isAvailable: true, stock: 50, sku: null, tags: [] },
-    { name: 'Watermelon Feta Salad', slug: 'watermelon-feta', description: 'Watermelon cubes, feta cheese and mint leaves with a balsamic glaze.', price: 1250, compareAtPrice: null, images: [img('photo-1551782450-a2132b4ba21d')], categorySlug: 'seasonal-salads', isFeatured: false, isAvailable: true, stock: 50, sku: null, tags: ['seasonal'] },
-    { name: 'Zesty Mango Salad', slug: 'zesty-mango', description: 'Mango slices, cilantro, red chillies and carrots with a chilli-lime vinaigrette.', price: 1350, compareAtPrice: null, images: [img('photo-1564093497595-593b96d80180')], categorySlug: 'seasonal-salads', isFeatured: false, isAvailable: true, stock: 50, sku: null, tags: ['seasonal'] },
-    { name: 'Grilled Peach Salad', slug: 'grilled-peach-salad', description: 'Mixed greens, grilled peaches, feta crumbs and candied walnuts with maple balsamic.', price: 1400, compareAtPrice: null, images: [img('photo-1505575967455-40e256f73376')], categorySlug: 'seasonal-salads', isFeatured: true, isAvailable: true, stock: 50, sku: null, tags: ['seasonal', 'signature'] },
-    { name: 'Classic Caesar Salad', slug: 'classic-caesar', description: 'Romaine, grilled chicken, parmesan and house Caesar dressing with croutons.', price: 1300, compareAtPrice: null, images: [img('photo-1550304943-4f24f54ddde9')], categorySlug: 'seasonal-salads', isFeatured: false, isAvailable: true, stock: 50, sku: null, tags: [] },
-    { name: 'Mushroom Puff', slug: 'mushroom-puff', description: 'Flaky pastry parcel filled with creamy garlic mushrooms.', price: 480, compareAtPrice: null, images: [img('photo-1621996346565-e3dbc646d9a9')], categorySlug: 'savoury-bites', isFeatured: false, isAvailable: true, stock: 50, sku: null, tags: [] },
-    { name: 'Cheese Sticks', slug: 'cheese-sticks', description: 'Golden baked breadsticks stuffed with melted mozzarella, served with marinara.', price: 650, compareAtPrice: null, images: [img('photo-1619531040576-f9416740661b')], categorySlug: 'savoury-bites', isFeatured: false, isAvailable: true, stock: 50, sku: null, tags: [] },
-    { name: 'Loaded Fries', slug: 'loaded-fries', description: 'Crispy fries loaded with cheese sauce, jalapenos and herbs.', price: 850, compareAtPrice: null, images: [img('photo-1573080496219-bb080dd4f877')], categorySlug: 'savoury-bites', isFeatured: true, isAvailable: true, stock: 50, sku: null, tags: ['bestseller'] },
-    { name: 'Chicken Croquettes', slug: 'chicken-croquettes', description: 'Crisp-fried croquettes with creamy chicken filling, served with garlic aioli.', price: 750, compareAtPrice: null, images: [img('photo-1626645738196-c2a7c87a8489')], categorySlug: 'savoury-bites', isFeatured: false, isAvailable: true, stock: 50, sku: null, tags: [] },
-    { name: 'Pink Velvet Cupcake', slug: 'pink-velvet-cupcake', description: 'Soft velvet cupcake topped with a swirl of rose buttercream.', price: 380, compareAtPrice: null, images: [img('photo-1607478900766-efe13248b125')], categorySlug: 'cupcakes-cookies', isFeatured: true, isAvailable: true, stock: 40, sku: null, tags: ['signature'] },
-    { name: 'Pistachio Macaron Box of 6', slug: 'pistachio-macaron-box', description: 'Six delicate pistachio macarons with white chocolate ganache filling.', price: 1800, compareAtPrice: null, images: [img('photo-1569864358642-9d1684040f43')], categorySlug: 'cupcakes-cookies', isFeatured: true, isAvailable: true, stock: 20, sku: null, tags: ['signature', 'gift'] },
-    { name: 'Chocolate Chip Cookie', slug: 'chocolate-chip-cookie', description: 'Thick, gooey cookie loaded with dark chocolate chunks.', price: 350, compareAtPrice: null, images: [img('photo-1499636136210-6f4ee915583e')], categorySlug: 'cupcakes-cookies', isFeatured: false, isAvailable: true, stock: 40, sku: null, tags: [] },
-    { name: 'Lotus Biscoff Cupcake', slug: 'lotus-biscoff-cupcake', description: 'Vanilla cupcake topped with Biscoff buttercream and crumb.', price: 420, compareAtPrice: null, images: [img('photo-1614707267537-b85aaf00c4b7')], categorySlug: 'cupcakes-cookies', isFeatured: false, isAvailable: true, stock: 40, sku: null, tags: [] },
-  ];
+  // ── Products ─────────────────────────────────────────────
+  await db.product.createMany({
+    data: [
 
-  for (const p of productsData) {
-    const { categorySlug, ...rest } = p;
-    await prisma.product.upsert({
-      where: { slug: p.slug },
-      update: { ...rest, categoryId: categories[categorySlug] },
-      create: { ...rest, categoryId: categories[categorySlug] },
-    });
-  }
+      // ESPRESSO BAR
+      {
+        name:        'Espresso',
+        slug:        'espresso',
+        description: 'A pure, concentrated shot of single-origin espresso. Clean, bold, and unapologetic.',
+        price:       280,
+        images:      [coffeeImg],
+        categoryId:  espresso.id,
+        stock:       99,
+        isAvailable: true,
+        isFeatured:  false,
+        tags:        ['coffee', 'espresso'],
+      },
+      {
+        name:        'Americano',
+        slug:        'americano',
+        description: 'Espresso pulled long with hot water. Clean and bold — for those who mean business.',
+        price:       320,
+        images:      [coffeeImg],
+        categoryId:  espresso.id,
+        stock:       99,
+        isAvailable: true,
+        isFeatured:  false,
+        tags:        ['coffee', 'americano'],
+      },
+      {
+        name:        'Flat White',
+        slug:        'flat-white',
+        description: 'Double ristretto with silky microfoam. Strong, smooth, and seriously good.',
+        price:       380,
+        images:      [coffeeImg],
+        categoryId:  espresso.id,
+        stock:       99,
+        isAvailable: true,
+        isFeatured:  true,
+        tags:        ['coffee', 'bestseller', 'flat white'],
+      },
+      {
+        name:        'Cappuccino',
+        slug:        'cappuccino',
+        description: 'Espresso, steamed milk and a thick cap of velvety foam. A timeless classic.',
+        price:       380,
+        images:      [coffeeImg],
+        categoryId:  espresso.id,
+        stock:       99,
+        isAvailable: true,
+        isFeatured:  false,
+        tags:        ['coffee', 'cappuccino'],
+      },
+      {
+        name:        'Caramel Latte',
+        slug:        'caramel-latte',
+        description: 'House espresso with warm caramel and steamed whole milk. Rich, sweet, satisfying.',
+        price:       460,
+        images:      [coffeeImg],
+        categoryId:  espresso.id,
+        stock:       99,
+        isAvailable: true,
+        isFeatured:  true,
+        tags:        ['coffee', 'latte', 'caramel', 'signature'],
+      },
+      {
+        name:        'WKND Signature Latte',
+        slug:        'wknd-signature-latte',
+        description: 'Brown sugar, cinnamon and double espresso with steamed oat milk. Our most-ordered drink.',
+        price:       490,
+        images:      [coffeeImg],
+        categoryId:  espresso.id,
+        stock:       99,
+        isAvailable: true,
+        isFeatured:  true,
+        tags:        ['coffee', 'signature', 'bestseller', 'latte'],
+      },
+      {
+        name:        'Hazelnut Mocha',
+        slug:        'hazelnut-mocha',
+        description: 'Dark chocolate, hazelnut and double espresso topped with steamed milk and cocoa dust.',
+        price:       480,
+        images:      [coffeeImg],
+        categoryId:  espresso.id,
+        stock:       99,
+        isAvailable: true,
+        isFeatured:  false,
+        tags:        ['coffee', 'mocha', 'hazelnut'],
+      },
+      {
+        name:        'Vanilla Cortado',
+        slug:        'vanilla-cortado',
+        description: 'Equal parts espresso and warm steamed milk with Tahitian vanilla. Simple. Perfect.',
+        price:       420,
+        images:      [coffeeImg],
+        categoryId:  espresso.id,
+        stock:       99,
+        isAvailable: true,
+        isFeatured:  false,
+        tags:        ['coffee', 'cortado', 'vanilla'],
+      },
+      {
+        name:        'Hot Chocolate',
+        slug:        'hot-chocolate',
+        description: 'Rich Belgian chocolate melted into steamed milk, finished with whipped cream.',
+        price:       420,
+        images:      [coffeeImg],
+        categoryId:  espresso.id,
+        stock:       99,
+        isAvailable: true,
+        isFeatured:  false,
+        tags:        ['hot chocolate', 'chocolate', 'non-coffee'],
+      },
 
-  await prisma.banner.deleteMany({});
+      // COLD BREW & ICED
+      {
+        name:        'Cold Brew',
+        slug:        'cold-brew',
+        description: '18-hour cold steeped single-origin. Smooth, low acid, intensely flavoured.',
+        price:       480,
+        images:      [icedImg],
+        categoryId:  coldBrew.id,
+        stock:       99,
+        isAvailable: true,
+        isFeatured:  true,
+        tags:        ['cold brew', 'iced', 'signature'],
+      },
+      {
+        name:        'Iced Caramel Latte',
+        slug:        'iced-caramel-latte',
+        description: 'Double espresso over ice with salted caramel syrup and cold whole milk.',
+        price:       490,
+        images:      [icedImg],
+        categoryId:  coldBrew.id,
+        stock:       99,
+        isAvailable: true,
+        isFeatured:  true,
+        tags:        ['iced', 'latte', 'bestseller', 'caramel'],
+      },
+      {
+        name:        'Iced Matcha Latte',
+        slug:        'iced-matcha-latte',
+        description: 'Ceremonial grade matcha whisked smooth with oat milk, poured over ice.',
+        price:       490,
+        images:      [icedImg],
+        categoryId:  coldBrew.id,
+        stock:       99,
+        isAvailable: true,
+        isFeatured:  false,
+        tags:        ['matcha', 'iced', 'non-coffee'],
+      },
+      {
+        name:        'Iced Spanish Latte',
+        slug:        'iced-spanish-latte',
+        description: 'Sweetened condensed milk layered with double espresso and whole milk over ice.',
+        price:       490,
+        images:      [icedImg],
+        categoryId:  coldBrew.id,
+        stock:       99,
+        isAvailable: true,
+        isFeatured:  false,
+        tags:        ['iced', 'latte', 'spanish'],
+      },
+      {
+        name:        'Brown Sugar Cold Brew',
+        slug:        'brown-sugar-cold-brew',
+        description: 'Cold brew shaken with house brown sugar syrup and poured over oat milk.',
+        price:       520,
+        images:      [icedImg],
+        categoryId:  coldBrew.id,
+        stock:       99,
+        isAvailable: true,
+        isFeatured:  false,
+        tags:        ['cold brew', 'iced', 'brown sugar'],
+      },
 
-  const bannerData = [
-    { type: BannerType.HERO, title: 'Pink Pistachio', subtitle: 'Boutique Cafe & Patisserie - DHA Raya & Gulberg, Lahore', image: img('photo-1554118811-1e0d58224f24'), position: 1, isActive: true },
-    { type: BannerType.HERO, title: 'Baked Fresh, Every Morning', subtitle: 'Sourdough, croissants & vintage cakes - straight from our kitchen', image: img('photo-1517433367423-c7e5b0f35086'), position: 2, isActive: true },
-    { type: BannerType.PROMO, title: 'Free Delivery Over Rs. 3,000', subtitle: 'Across DHA & Gulberg, Lahore', image: img('photo-1577219491135-ce391730fb2c'), position: 1, isActive: true },
-    { type: BannerType.GALLERY, title: 'Our Pistachio Latte', subtitle: null, image: img('photo-1517701604599-bb29b565090c'), position: 1, isActive: true },
-    { type: BannerType.GALLERY, title: 'Vintage Butter Cream Cakes', subtitle: null, image: img('photo-1535141192574-5d4897c12636'), position: 2, isActive: true },
-    { type: BannerType.GALLERY, title: 'European Interiors', subtitle: null, image: img('photo-1554118811-1e0d58224f24'), position: 3, isActive: true },
-    { type: BannerType.GALLERY, title: 'Fresh Pastry Counter', subtitle: null, image: img('photo-1555507036-ab1f4038808a'), position: 4, isActive: true },
-  ];
+      // ALL-DAY BRUNCH
+      {
+        name:        'WKND Big Breakfast',
+        slug:        'wknd-big-breakfast',
+        description: 'Eggs your way, turkey sausage, grilled tomato, sautéed mushrooms, hashbrowns and sourdough toast. The full spread.',
+        price:       1750,
+        images:      [brunchImg],
+        categoryId:  brunch.id,
+        stock:       50,
+        isAvailable: true,
+        isFeatured:  true,
+        tags:        ['brunch', 'bestseller', 'signature', 'full breakfast'],
+      },
+      {
+        name:        'Eggs Benedict',
+        slug:        'eggs-benedict',
+        description: 'Two poached eggs on toasted English muffin with smoked turkey and hollandaise. Brunch done right.',
+        price:       1350,
+        images:      [brunchImg],
+        categoryId:  brunch.id,
+        stock:       50,
+        isAvailable: true,
+        isFeatured:  true,
+        tags:        ['brunch', 'eggs', 'bestseller'],
+      },
+      {
+        name:        'Smashed Avocado Toast',
+        slug:        'smashed-avocado-toast',
+        description: 'Sourdough, smashed avocado, chilli flakes, poached egg, crumbled feta and dukkah. A proper classic.',
+        price:       1150,
+        images:      [toastImg],
+        categoryId:  brunch.id,
+        stock:       50,
+        isAvailable: true,
+        isFeatured:  true,
+        tags:        ['brunch', 'avocado', 'vegetarian', 'bestseller'],
+      },
+      {
+        name:        'Shakshuka',
+        slug:        'shakshuka',
+        description: 'Two eggs poached in a spiced tomato and roasted pepper sauce, served with crusty bread.',
+        price:       1100,
+        images:      [brunchImg],
+        categoryId:  brunch.id,
+        stock:       50,
+        isAvailable: true,
+        isFeatured:  false,
+        tags:        ['brunch', 'eggs', 'vegetarian'],
+      },
+      {
+        name:        'French Toast',
+        slug:        'french-toast',
+        description: 'Thick cut brioche French toast, fresh berries, maple syrup and whipped butter.',
+        price:       1050,
+        images:      [brunchImg],
+        categoryId:  brunch.id,
+        stock:       50,
+        isAvailable: true,
+        isFeatured:  false,
+        tags:        ['brunch', 'sweet', 'french toast'],
+      },
+      {
+        name:        'Pancake Stack',
+        slug:        'pancake-stack',
+        description: 'Three fluffy buttermilk pancakes with seasonal fruit compote and maple butter.',
+        price:       950,
+        images:      [brunchImg],
+        categoryId:  brunch.id,
+        stock:       50,
+        isAvailable: true,
+        isFeatured:  false,
+        tags:        ['brunch', 'sweet', 'pancakes'],
+      },
 
-  for (const b of bannerData) {
-    await prisma.banner.create({ data: b });
-  }
+      // LIGHT BITES
+      {
+        name:        'WKND Club Sandwich',
+        slug:        'wknd-club-sandwich',
+        description: 'Triple decker with grilled chicken, turkey bacon, lettuce, heirloom tomato and chipotle mayo on toasted sourdough.',
+        price:       1150,
+        images:      [sandwichImg],
+        categoryId:  bites.id,
+        stock:       50,
+        isAvailable: true,
+        isFeatured:  true,
+        tags:        ['sandwich', 'bestseller', 'chicken'],
+      },
+      {
+        name:        'BLT Baguette',
+        slug:        'blt-baguette',
+        description: 'Crisp turkey bacon, baby gem lettuce and heirloom tomato in a toasted French baguette with herb mayo.',
+        price:       980,
+        images:      [sandwichImg],
+        categoryId:  bites.id,
+        stock:       50,
+        isAvailable: true,
+        isFeatured:  false,
+        tags:        ['sandwich', 'baguette'],
+      },
+      {
+        name:        'Grilled Chicken Salad',
+        slug:        'grilled-chicken-salad',
+        description: 'Charred chicken breast, rocket, shaved parmesan, croutons and Caesar dressing.',
+        price:       1100,
+        images:      [sandwichImg],
+        categoryId:  bites.id,
+        stock:       50,
+        isAvailable: true,
+        isFeatured:  false,
+        tags:        ['salad', 'chicken', 'healthy'],
+      },
+      {
+        name:        'Loaded Fries',
+        slug:        'loaded-fries',
+        description: 'Crispy golden fries topped with melted cheese, pickled jalapeños, sour cream and spring onion.',
+        price:       780,
+        images:      [sandwichImg],
+        categoryId:  bites.id,
+        stock:       99,
+        isAvailable: true,
+        isFeatured:  false,
+        tags:        ['fries', 'snack', 'sharing'],
+      },
+      {
+        name:        'Cheese Board',
+        slug:        'cheese-board',
+        description: 'Aged cheddar, brie and truffle gouda with fig jam, artisan crackers and seasonal fruit.',
+        price:       1400,
+        images:      [sandwichImg],
+        categoryId:  bites.id,
+        stock:       20,
+        isAvailable: true,
+        isFeatured:  false,
+        tags:        ['cheese', 'sharing', 'premium'],
+      },
 
-  await prisma.coupon.upsert({
-    where: { code: 'PISTACHIO10' },
-    update: {},
-    create: { code: 'PISTACHIO10', type: CouponType.PERCENTAGE, value: 10, minOrderAmount: 1500, isActive: true },
+      // PASTRIES & BAKES
+      {
+        name:        'Butter Croissant',
+        slug:        'butter-croissant',
+        description: 'Classic French croissant baked fresh every morning. Flaky, buttery, made with laminated dough.',
+        price:       380,
+        images:      [croissantImg],
+        categoryId:  pastries.id,
+        stock:       30,
+        isAvailable: true,
+        isFeatured:  false,
+        tags:        ['pastry', 'croissant', 'baked'],
+      },
+      {
+        name:        'Pain au Chocolat',
+        slug:        'pain-au-chocolat',
+        description: 'Buttery croissant dough wrapped around a core of dark Belgian chocolate. Warm from the oven.',
+        price:       420,
+        images:      [croissantImg],
+        categoryId:  pastries.id,
+        stock:       30,
+        isAvailable: true,
+        isFeatured:  true,
+        tags:        ['pastry', 'chocolate', 'bestseller'],
+      },
+      {
+        name:        'Almond Croissant',
+        slug:        'almond-croissant',
+        description: 'Flaky croissant filled and generously topped with almond frangipane and toasted flaked almonds.',
+        price:       450,
+        images:      [croissantImg],
+        categoryId:  pastries.id,
+        stock:       30,
+        isAvailable: true,
+        isFeatured:  false,
+        tags:        ['pastry', 'almond', 'croissant'],
+      },
+      {
+        name:        'Banana Bread',
+        slug:        'banana-bread',
+        description: 'House-made banana walnut bread, served warm with salted brown butter.',
+        price:       360,
+        images:      [cakeImg],
+        categoryId:  pastries.id,
+        stock:       20,
+        isAvailable: true,
+        isFeatured:  false,
+        tags:        ['bake', 'banana bread'],
+      },
+      {
+        name:        'Cinnamon Roll',
+        slug:        'cinnamon-roll',
+        description: 'Pillowy soft cinnamon roll with cream cheese glaze. Baked fresh every morning.',
+        price:       480,
+        images:      [cakeImg],
+        categoryId:  pastries.id,
+        stock:       20,
+        isAvailable: true,
+        isFeatured:  true,
+        tags:        ['pastry', 'cinnamon', 'signature', 'bestseller'],
+      },
+
+      // SMOOTHIES & SHAKES
+      {
+        name:        'Mango & Passionfruit',
+        slug:        'mango-passionfruit',
+        description: 'Alphonso mango blended with passionfruit, banana and coconut water. Tropical and refreshing.',
+        price:       720,
+        images:      [smoothieImg],
+        categoryId:  smoothies.id,
+        stock:       50,
+        isAvailable: true,
+        isFeatured:  false,
+        tags:        ['smoothie', 'mango', 'tropical'],
+      },
+      {
+        name:        'Berry Blast',
+        slug:        'berry-blast',
+        description: 'Mixed berries, Greek yogurt, raw honey and almond milk blended until perfectly smooth.',
+        price:       750,
+        images:      [smoothieImg],
+        categoryId:  smoothies.id,
+        stock:       50,
+        isAvailable: true,
+        isFeatured:  false,
+        tags:        ['smoothie', 'berry', 'healthy'],
+      },
+      {
+        name:        'WKND Shake',
+        slug:        'wknd-shake',
+        description: 'Vanilla ice cream, double espresso, caramel sauce and toasted almond crumble. Our signature shake.',
+        price:       850,
+        images:      [smoothieImg],
+        categoryId:  smoothies.id,
+        stock:       50,
+        isAvailable: true,
+        isFeatured:  true,
+        tags:        ['shake', 'signature', 'bestseller', 'coffee'],
+      },
+    ],
   });
+  console.log('✅ Products created');
 
-  await prisma.coupon.upsert({
-    where: { code: 'WELCOME150' },
-    update: {},
-    create: { code: 'WELCOME150', type: CouponType.FIXED, value: 150, minOrderAmount: 1000, isActive: true },
+  // ── Banners ──────────────────────────────────────────────
+  await db.banner.createMany({
+    data: [
+      {
+        type:     'HERO',
+        title:    'Your Weekend, Every Day.',
+        subtitle: 'Specialty coffee & all-day brunch at DHA Raya, Lahore.',
+        image:    'https://images.unsplash.com/photo-1447933601403-0c6688de566e?q=80&w=1400',
+        link:     '/menu',
+        position: 1,
+        isActive: true,
+      },
+      {
+        type:     'PROMO',
+        title:    'All-Day Brunch',
+        subtitle: 'Served 8am to close. Because good mornings have no deadline.',
+        image:    'https://images.unsplash.com/photo-1533089860892-a7c6f0a88666?q=80&w=1200',
+        link:     '/menu?category=all-day-brunch',
+        position: 1,
+        isActive: true,
+      },
+    ],
   });
+  console.log('✅ Banners created');
 
-  console.log('Seed complete.');
-  console.log('Admin -> email: ' + adminEmail + ' / password: ' + adminPassword);
+  // ── Welcome coupon ───────────────────────────────────────
+  await db.coupon.create({
+    data: {
+      code:           'WKND10',
+      type:           'PERCENTAGE',
+      value:          10,
+      minOrderAmount: 1000,
+      isActive:       true,
+      maxUses:        500,
+      usedCount:      0,
+    },
+  });
+  console.log('✅ Welcome coupon WKND10 created');
+
+  console.log('');
+  console.log('🎉 WKND Coffee database seeded successfully!');
+  console.log('');
+  console.log('Admin login:');
+  console.log('  Email:    admin@wkndcoffee.pk');
+  console.log('  Password: WkndAdmin2026!');
+  console.log('');
+  console.log('Welcome coupon: WKND10 (10% off orders over Rs. 1,000)');
 }
 
 main()
@@ -160,5 +597,5 @@ main()
     process.exit(1);
   })
   .finally(async () => {
-    await prisma.$disconnect();
+    await db.$disconnect();
   });

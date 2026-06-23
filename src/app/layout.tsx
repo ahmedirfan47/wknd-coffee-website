@@ -1,63 +1,62 @@
 import type { Metadata } from 'next';
-import { Playfair_Display, Poppins } from 'next/font/google';
+import { Playfair_Display, Inter } from 'next/font/google';
 import './globals.css';
 import { Providers } from './providers';
 import Navbar from '@/components/storefront/Navbar';
 import Footer from '@/components/storefront/Footer';
-import { SITE } from '@/lib/constants';
 
 const playfair = Playfair_Display({
-  subsets: ['latin'],
+  subsets:  ['latin'],
   variable: '--font-display',
-  weight: ['500', '600', '700', '800'],
+  weight:   ['400', '600', '700'],
 });
 
-const poppins = Poppins({
-  subsets: ['latin'],
+const inter = Inter({
+  subsets:  ['latin'],
   variable: '--font-sans',
-  weight: ['300', '400', '500', '600', '700'],
 });
 
 export const metadata: Metadata = {
-  metadataBase: new URL(SITE.url),
   title: {
-    default: `${SITE.name} | ${SITE.tagline} — Lahore`,
-    template: `%s | ${SITE.name}`,
+    default:  'WKND Coffee | Specialty Coffee & Brunch — DHA Raya, Lahore',
+    template: '%s | WKND Coffee',
   },
-  description: SITE.description,
+  description:
+    'Specialty coffee, all-day brunch and light bites at DHA Raya, Lahore. Good coffee, good food, good vibes — every single day.',
   keywords: [
-    'Pink Pistachio',
-    'cafe Lahore',
-    'patisserie Lahore',
-    'pistachio latte',
+    'WKND Coffee',
+    'specialty coffee Lahore',
     'DHA Raya cafe',
-    'Gulberg cafe',
-    'best bakery Lahore',
-    'order cake online Lahore',
+    'brunch Lahore',
+    'best coffee DHA Phase 6',
+    'wknd coffee raya',
   ],
+  authors:  [{ name: 'WKND Coffee' }],
   openGraph: {
-    title: `${SITE.name} | ${SITE.tagline}`,
-    description: SITE.description,
-    url: SITE.url,
-    siteName: SITE.name,
-    locale: 'en_US',
-    type: 'website',
+    type:        'website',
+    locale:      'en_PK',
+    siteName:    'WKND Coffee',
+    title:       'WKND Coffee | Specialty Coffee & Brunch — DHA Raya',
+    description: 'Specialty coffee, all-day brunch and light bites at DHA Raya, Lahore.',
   },
   twitter: {
-    card: 'summary_large_image',
-    title: `${SITE.name} | ${SITE.tagline}`,
-    description: SITE.description,
+    card:        'summary_large_image',
+    title:       'WKND Coffee | DHA Raya, Lahore',
+    description: 'Specialty coffee, all-day brunch and light bites at DHA Raya, Lahore.',
   },
-  robots: { index: true, follow: true },
 };
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+export default function RootLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
   return (
-    <html lang="en" className={`${playfair.variable} ${poppins.variable}`}>
-      <body>
+    <html lang="en" className={`${playfair.variable} ${inter.variable}`}>
+      <body className="min-h-screen bg-cream font-sans antialiased">
         <Providers>
           <Navbar />
-          <main className="min-h-screen">{children}</main>
+          <main>{children}</main>
           <Footer />
         </Providers>
       </body>

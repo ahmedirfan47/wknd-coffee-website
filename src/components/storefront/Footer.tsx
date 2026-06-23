@@ -99,7 +99,7 @@ export default function Footer() {
 
         {/* Bottom bar */}
         <div className="mt-12 flex flex-col items-center justify-between gap-3 border-t border-pink-100 pt-6 text-xs text-charcoal-600 sm:flex-row">
-          <p>&copy; {new Date().getFullYear()} {SITE.legalName}. All rights reserved.</p>
+          <p>&copy; {new Date().getFullYear()} {SITE.name}. All rights reserved.</p>
           <p>Designed with love in Lahore, Pakistan</p>
         </div>
       </div>

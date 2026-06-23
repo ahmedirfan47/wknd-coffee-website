@@ -1,24 +1,26 @@
 export const SITE = {
   name:        'WKND Coffee',
-  tagline:     'Your Weekend, Every Day.',
-  description: 'Specialty coffee, all-day brunch and light bites at DHA Raya, Lahore. Good coffee. Good food. Good vibes.',
+  tagline:     "What's better than a weekend?",
+  description: "Lahore's only ODK café. Coffee, matcha, sandwiches and desserts — in-store 9am–11pm, FoodPanda/pick-up till 1am.",
   url:         'https://wknd-coffee-website.vercel.app',
   email:       'hello@wkndcoffee.pk',
   phone:       '+92 300 0000000',
-  whatsapp:    '+923000000000',
+  whatsapp:    'https://wa.me/message/DAINOCZIHB3UK1',
   instagram:   'https://www.instagram.com/wkndcoffeeraya',
   facebook:    'https://www.facebook.com/wkndcoffeeraya',
-  keywords:    'WKND Coffee, specialty coffee Lahore, DHA Raya cafe, brunch Lahore, best coffee DHA Phase 6',
+  keywords:    'WKND Coffee, specialty coffee Lahore, DHA Raya cafe, matcha Lahore, ODK cafe, best coffee DHA Phase 6, coffee sandwiches desserts Lahore',
 };
 
 export const BRANCHES = [
   {
-    id:      'raya',
-    name:    'DHA Raya',
-    address: 'Raya Fairways Commercial, Phase 6, DHA, Lahore',
-    hours:   '8:00 AM - 12:00 AM',
-    phone:   '+92 300 0000000',
-    maps:    'https://maps.google.com/?q=Raya+Fairways+DHA+Phase+6+Lahore',
+    id:        'raya',
+    name:      'DHA Raya',
+    address:   'Plaza No. 92, DHA Raya, Lahore, Pakistan',
+    hours:     '9:00 AM – 11:00 PM',
+    hoursNote: 'FoodPanda & Pick-Up till 1:00 AM',
+    phone:     '+92 300 0000000',
+    whatsapp:  'https://wa.me/message/DAINOCZIHB3UK1',
+    maps:      'https://maps.google.com/?q=Plaza+92+DHA+Raya+Lahore',
   },
 ];
 
@@ -29,7 +31,12 @@ export const NAV_LINKS = [
   { href: '/contact', label: 'Contact' },
 ];
 
-export const SOCIAL_LINKS = [
-  { platform: 'Instagram', href: 'https://www.instagram.com/wkndcoffeeraya', icon: 'instagram' },
-  { platform: 'Facebook',  href: 'https://www.facebook.com/wkndcoffeeraya',  icon: 'facebook'  },
+export const MENU_SECTIONS = [
+  { name: 'Life Happens, Coffee Helps', slug: 'coffee',       emoji: '☕' },
+  { name: 'Matcha Mood',                slug: 'matcha-mood',  emoji: '🍵' },
+  { name: 'WKND Specials',              slug: 'wknd-specials',emoji: '⭐' },
+  { name: 'Frappe Club',                slug: 'frappe-club',  emoji: '🧊' },
+  { name: 'Soft-Sips',                  slug: 'soft-sips',    emoji: '🥤' },
+  { name: 'Toasty Treats',              slug: 'toasty-treats',emoji: '🥪' },
+  { name: 'Desserts',                   slug: 'desserts',     emoji: '🍰' },
 ];

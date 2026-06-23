@@ -43,7 +43,7 @@ export default function ContactPage() {
                 </p>
               </div>
               <a
-                href={b.mapUrl}
+                href={b.maps}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="btn-secondary mt-4 inline-flex"

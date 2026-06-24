@@ -1,7 +1,7 @@
 'use client';
 import { useEffect, useState, useCallback } from 'react';
 import Image from 'next/image';
-import { Plus, Pencil, Trash2, Search, X, Loader2, ImagePlus, FolderPlus } from 'lucide-react';
+import { Plus, Pencil, Trash2, Search, X, Loader2, ImagePlus, Link as LinkIcon, FolderPlus } from 'lucide-react';
 import { formatPrice } from '@/lib/utils';
 
 interface Category { id: string; name: string; slug: string }
@@ -17,28 +17,31 @@ const EMPTY_PRODUCT = {
   isFeatured: false, isAvailable: true, images: [] as string[],
 };
 
-const EMPTY_CATEGORY = { name: '', slug: '', description: '', position: '0', isActive: true };
+const EMPTY_CAT = { name: '', slug: '', description: '', position: '0', isActive: true };
 
-function slugify(str: string) {
-  return str.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+function slugify(s: string) {
+  return s.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
 }
 
 export default function ProductsClient() {
-  const [products,      setProducts]      = useState<Product[]>([]);
-  const [categories,    setCategories]    = useState<Category[]>([]);
-  const [loading,       setLoading]       = useState(true);
-  const [search,        setSearch]        = useState('');
-  const [modal,         setModal]         = useState(false);
-  const [catModal,      setCatModal]      = useState(false);
-  const [editing,       setEditing]       = useState<Product | null>(null);
-  const [editingCat,    setEditingCat]    = useState<Category | null>(null);
-  const [form,          setForm]          = useState<any>(EMPTY_PRODUCT);
-  const [catForm,       setCatForm]       = useState<any>(EMPTY_CATEGORY);
-  const [saving,        setSaving]        = useState(false);
-  const [savingCat,     setSavingCat]     = useState(false);
-  const [imgUploading,  setImgUploading]  = useState(false);
-  const [error,         setError]         = useState('');
-  const [catError,      setCatError]      = useState('');
+  const [products,     setProducts]     = useState<Product[]>([]);
+  const [categories,   setCategories]   = useState<Category[]>([]);
+  const [loading,      setLoading]      = useState(true);
+  const [search,       setSearch]       = useState('');
+  const [modal,        setModal]        = useState(false);
+  const [catModal,     setCatModal]     = useState(false);
+  const [editing,      setEditing]      = useState<Product | null>(null);
+  const [editingCat,   setEditingCat]   = useState<Category | null>(null);
+  const [form,         setForm]         = useState<any>(EMPTY_PRODUCT);
+  const [catForm,      setCatForm]      = useState<any>(EMPTY_CAT);
+  const [saving,       setSaving]       = useState(false);
+  const [savingCat,    setSavingCat]    = useState(false);
+  const [imgUploading, setImgUploading] = useState(false);
+  const [error,        setError]        = useState('');
+  const [catError,     setCatError]     = useState('');
+  const [uploadError,  setUploadError]  = useState('');
+  const [urlInput,     setUrlInput]     = useState('');
+  const [showUrlInput, setShowUrlInput] = useState(false);
 
   const fetchAll = useCallback(async () => {
     setLoading(true);
@@ -61,8 +64,7 @@ export default function ProductsClient() {
     setCategories(Array.isArray(c) ? c : []);
   };
 
-  // Product handlers
-  const openCreate = () => { setEditing(null); setForm(EMPTY_PRODUCT); setError(''); setModal(true); };
+  const openCreate = () => { setEditing(null); setForm(EMPTY_PRODUCT); setError(''); setUploadError(''); setUrlInput(''); setShowUrlInput(false); setModal(true); };
   const openEdit   = (p: Product) => {
     setEditing(p);
     setForm({
@@ -78,16 +80,40 @@ export default function ProductsClient() {
       isAvailable:    p.isAvailable,
       images:         p.images,
     });
-    setError(''); setModal(true);
+    setError(''); setUploadError(''); setUrlInput(''); setShowUrlInput(false); setModal(true);
   };
 
+  // File upload
   const uploadImage = async (file: File) => {
     setImgUploading(true);
-    const fd = new FormData(); fd.append('file', file);
-    const res  = await fetch('/api/admin/upload', { method: 'POST', body: fd });
-    const data = await res.json();
-    if (data.url) setForm((f: any) => ({ ...f, images: [...f.images, data.url] }));
-    setImgUploading(false);
+    setUploadError('');
+    try {
+      const fd = new FormData();
+      fd.append('file', file);
+      const res  = await fetch('/api/admin/upload', { method: 'POST', body: fd });
+      const data = await res.json();
+      if (!res.ok) {
+        setUploadError(data.error || 'Upload failed');
+        if (data.setupRequired) setShowUrlInput(true);
+      } else if (data.url) {
+        setForm((f: any) => ({ ...f, images: [...f.images, data.url] }));
+        setUploadError('');
+      }
+    } catch {
+      setUploadError('Upload failed. Please check your connection.');
+    } finally {
+      setImgUploading(false);
+    }
+  };
+
+  // URL-based image add
+  const addImageUrl = () => {
+    const url = urlInput.trim();
+    if (!url) return;
+    if (!url.startsWith('http')) { setUploadError('Please enter a valid URL starting with http://'); return; }
+    setForm((f: any) => ({ ...f, images: [...f.images, url] }));
+    setUrlInput('');
+    setUploadError('');
   };
 
   const removeImage = (idx: number) =>
@@ -106,62 +132,51 @@ export default function ProductsClient() {
     const method = editing ? 'PUT' : 'POST';
     const res    = await fetch(url, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
     const data   = await res.json();
-    if (!res.ok) { setError(data.error ?? 'Failed to save'); setSaving(false); return; }
+    if (!res.ok) { setError(data.error ?? 'Failed to save product'); setSaving(false); return; }
     setModal(false); fetchAll(); setSaving(false);
   };
 
   const deleteProduct = async (id: string) => {
-    if (!confirm('Delete this product?')) return;
-    await fetch(`/api/admin/products/${id}`, { method: 'DELETE' });
+    if (!confirm('Delete this product? This cannot be undone.')) return;
+    const res  = await fetch(`/api/admin/products/${id}`, { method: 'DELETE' });
+    const data = await res.json();
+    if (!res.ok) { alert(data.error || 'Could not delete product'); return; }
     fetchAll();
   };
 
   // Category handlers
-  const openCreateCat = () => {
-    setEditingCat(null); setCatForm(EMPTY_CATEGORY); setCatError(''); setCatModal(true);
-  };
-
-  const openEditCat = (c: Category) => {
+  const openCreateCat = () => { setEditingCat(null); setCatForm(EMPTY_CAT); setCatError(''); setCatModal(true); };
+  const openEditCat   = (c: Category) => {
     setEditingCat(c);
     setCatForm({ name: c.name, slug: c.slug, description: (c as any).description ?? '', position: String((c as any).position ?? 0), isActive: (c as any).isActive ?? true });
     setCatError(''); setCatModal(true);
   };
 
-  const saveCategory = async () => {
+  const saveCat = async () => {
     setSavingCat(true); setCatError('');
     const body   = { ...catForm, position: Number(catForm.position) };
     const url    = editingCat ? `/api/admin/categories/${editingCat.id}` : '/api/admin/categories';
     const method = editingCat ? 'PUT' : 'POST';
     const res    = await fetch(url, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
     const data   = await res.json();
-    if (!res.ok) { setCatError(data.error ?? 'Failed'); setSavingCat(false); return; }
+    if (!res.ok) { setCatError(data.error ?? 'Failed to save'); setSavingCat(false); return; }
     setCatModal(false);
     await fetchCategories();
-    // Auto-select newly created category in product form
-    if (!editingCat && data.id) {
-      setForm((f: any) => ({ ...f, categoryId: data.id }));
-    }
+    if (!editingCat && data.id) setForm((f: any) => ({ ...f, categoryId: data.id }));
     setSavingCat(false);
   };
 
-  const deleteCategory = async (id: string, name: string) => {
-    // Check if products exist in this category
-    const products = await fetch(`/api/admin/products?categoryId=${id}`).then(r => r.json());
-    const count    = Array.isArray(products) ? products.length : 0;
-
+  const deleteCat = async (id: string, name: string) => {
+    const check = await fetch(`/api/admin/products?categoryId=${id}`).then(r => r.json());
+    const count = Array.isArray(check) ? check.length : 0;
     if (count > 0) {
-      const reassign = confirm(
-        `"${name}" has ${count} product${count !== 1 ? 's' : ''}. ` +
-        `You must reassign them before deleting this category.\n\n` +
-        `Click OK to cancel — go reassign products first.`
-      );
-      return; // Always block deletion if products exist
+      alert(`"${name}" has ${count} product${count !== 1 ? 's' : ''}. Reassign or delete those products before deleting this category.`);
+      return;
     }
-
     if (!confirm(`Delete category "${name}"? This cannot be undone.`)) return;
     const res  = await fetch(`/api/admin/categories/${id}`, { method: 'DELETE' });
     const data = await res.json();
-    if (!res.ok) { alert(data.error ?? 'Could not delete category'); return; }
+    if (!res.ok) { alert(data.error || 'Could not delete category'); return; }
     fetchCategories();
   };
 
@@ -171,14 +186,9 @@ export default function ProductsClient() {
       <div className="mb-6 flex flex-wrap items-center gap-3">
         <div className="relative">
           <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-charcoal-600/50" />
-          <input
-            value={search} onChange={e => setSearch(e.target.value)}
-            placeholder="Search products..." className="input-field w-60 pl-11"
-          />
+          <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search products..." className="input-field w-60 pl-11" />
         </div>
-        <button onClick={openCreate} className="btn-primary ml-auto">
-          <Plus className="h-4 w-4" /> Add Product
-        </button>
+        <button onClick={openCreate} className="btn-primary ml-auto"><Plus className="h-4 w-4" /> Add Product</button>
       </div>
 
       {/* Table */}
@@ -197,9 +207,7 @@ export default function ProductsClient() {
             </thead>
             <tbody>
               {loading ? (
-                <tr><td colSpan={6} className="py-14 text-center">
-                  <Loader2 className="mx-auto h-6 w-6 animate-spin text-pink-500" />
-                </td></tr>
+                <tr><td colSpan={6} className="py-14 text-center"><Loader2 className="mx-auto h-6 w-6 animate-spin text-pink-500" /></td></tr>
               ) : products.length === 0 ? (
                 <tr><td colSpan={6} className="py-14 text-center text-charcoal-600">No products found.</td></tr>
               ) : products.map(p => (
@@ -207,7 +215,7 @@ export default function ProductsClient() {
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-3">
                       <div className="relative h-10 w-10 shrink-0 overflow-hidden rounded-xl bg-pink-50">
-                        {p.images[0] && <Image src={p.images[0]} alt={p.name} fill className="object-cover" />}
+                        {p.images[0] && <Image src={p.images[0]} alt={p.name} fill className="object-cover" sizes="40px" />}
                       </div>
                       <div>
                         <p className="font-medium text-charcoal">{p.name}</p>
@@ -227,12 +235,8 @@ export default function ProductsClient() {
                   </td>
                   <td className="px-4 py-3">
                     <div className="flex gap-2">
-                      <button onClick={() => openEdit(p)} className="rounded-lg p-1.5 text-charcoal-600 hover:bg-pink-100 hover:text-pink-600">
-                        <Pencil className="h-4 w-4" />
-                      </button>
-                      <button onClick={() => deleteProduct(p.id)} className="rounded-lg p-1.5 text-charcoal-600 hover:bg-red-50 hover:text-red-600">
-                        <Trash2 className="h-4 w-4" />
-                      </button>
+                      <button onClick={() => openEdit(p)} className="rounded-lg p-1.5 text-charcoal-600 hover:bg-pink-100 hover:text-pink-600"><Pencil className="h-4 w-4" /></button>
+                      <button onClick={() => deleteProduct(p.id)} className="rounded-lg p-1.5 text-charcoal-600 hover:bg-red-50 hover:text-red-600"><Trash2 className="h-4 w-4" /></button>
                     </div>
                   </td>
                 </tr>
@@ -245,25 +249,20 @@ export default function ProductsClient() {
       {/* Product Modal */}
       {modal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-charcoal/40 p-4 backdrop-blur-sm">
-          <div className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-3xl bg-white p-6 shadow-soft">
+          <div className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-3xl bg-white p-6 shadow-hover">
             <div className="mb-5 flex items-center justify-between">
-              <h2 className="font-display text-xl font-bold text-charcoal">
-                {editing ? 'Edit Product' : 'Add Product'}
-              </h2>
-              <button onClick={() => setModal(false)} className="rounded-xl p-2 hover:bg-pink-50">
-                <X className="h-5 w-5" />
-              </button>
+              <h2 className="font-display text-xl font-bold text-charcoal">{editing ? 'Edit Product' : 'Add Product'}</h2>
+              <button onClick={() => setModal(false)} className="rounded-xl p-2 hover:bg-pink-50"><X className="h-5 w-5" /></button>
             </div>
 
             <div className="space-y-4">
+              {/* Name + Slug */}
               <div className="grid gap-4 sm:grid-cols-2">
                 <div>
                   <label className="label-field">Name</label>
-                  <input
-                    value={form.name}
+                  <input value={form.name}
                     onChange={e => setForm((f: any) => ({ ...f, name: e.target.value, slug: slugify(e.target.value) }))}
-                    className="input-field" placeholder="Product name"
-                  />
+                    className="input-field" placeholder="Product name" />
                 </div>
                 <div>
                   <label className="label-field">Slug</label>
@@ -295,43 +294,22 @@ export default function ProductsClient() {
               <div>
                 <div className="mb-1 flex items-center justify-between">
                   <label className="label-field !mb-0">Category</label>
-                  <button
-                    type="button" onClick={openCreateCat}
-                    className="flex items-center gap-1 text-xs font-semibold text-pink-600 hover:underline"
-                  >
+                  <button type="button" onClick={openCreateCat} className="flex items-center gap-1 text-xs font-semibold text-pink-600 hover:underline">
                     <FolderPlus className="h-3.5 w-3.5" /> New Category
                   </button>
                 </div>
-                <div className="flex gap-2">
-                  <select
-                    value={form.categoryId}
-                    onChange={e => setForm((f: any) => ({ ...f, categoryId: e.target.value }))}
-                    className="input-field flex-1"
-                  >
-                    <option value="">Select category</option>
-                    {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-                  </select>
-                  {form.categoryId && (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        const cat = categories.find(c => c.id === form.categoryId);
-                        if (cat) openEditCat(cat);
-                      }}
-                      className="rounded-2xl border border-pink-200 px-3 text-xs font-semibold text-charcoal-600 hover:bg-pink-50"
-                    >
-                      <Pencil className="h-3.5 w-3.5" />
-                    </button>
-                  )}
-                </div>
-                {/* Category list for quick management */}
+                <select value={form.categoryId} onChange={e => setForm((f: any) => ({ ...f, categoryId: e.target.value }))} className="input-field">
+                  <option value="">Select category</option>
+                  {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                </select>
                 {categories.length > 0 && (
                   <div className="mt-2 flex flex-wrap gap-1.5">
                     {categories.map(c => (
-                      <div key={c.id} className={`flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-xs ${form.categoryId === c.id ? 'border-pink-300 bg-pink-50 text-pink-700' : 'border-pink-100 text-charcoal-600'}`}>
-                        <span className="cursor-pointer" onClick={() => setForm((f: any) => ({ ...f, categoryId: c.id }))}>{c.name}</span>
-                        <button onClick={() => openEditCat(c)} className="ml-1 text-charcoal-600 hover:text-pink-600"><Pencil className="h-2.5 w-2.5" /></button>
-                        <button onClick={() => deleteCategory(c.id, c.name)} className="text-charcoal-600 hover:text-red-600"><X className="h-2.5 w-2.5" /></button>
+                      <div key={c.id} className={`flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-xs cursor-pointer ${form.categoryId === c.id ? 'border-pink-300 bg-pink-50 text-pink-700' : 'border-pink-100 text-charcoal-600'}`}
+                        onClick={() => setForm((f: any) => ({ ...f, categoryId: c.id }))}>
+                        {c.name}
+                        <button onClick={e => { e.stopPropagation(); openEditCat(c); }} className="ml-1 hover:text-pink-600"><Pencil className="h-2.5 w-2.5" /></button>
+                        <button onClick={e => { e.stopPropagation(); deleteCat(c.id, c.name); }} className="hover:text-red-600"><X className="h-2.5 w-2.5" /></button>
                       </div>
                     ))}
                   </div>
@@ -345,7 +323,7 @@ export default function ProductsClient() {
                 </div>
                 <div>
                   <label className="label-field">Tags (comma separated)</label>
-                  <input value={form.tags} onChange={e => setForm((f: any) => ({ ...f, tags: e.target.value }))} className="input-field" placeholder="bestseller, seasonal" />
+                  <input value={form.tags} onChange={e => setForm((f: any) => ({ ...f, tags: e.target.value }))} className="input-field" placeholder="bestseller, signature" />
                 </div>
               </div>
 
@@ -360,24 +338,61 @@ export default function ProductsClient() {
                 </label>
               </div>
 
-              {/* Images */}
+              {/* Images — file upload + URL paste */}
               <div>
                 <label className="label-field">Images</label>
+
+                {/* Existing image thumbnails */}
+                {form.images.length > 0 && (
+                  <div className="mb-3 flex flex-wrap gap-2">
+                    {form.images.map((img: string, i: number) => (
+                      <div key={i} className="relative h-20 w-20 overflow-hidden rounded-2xl border border-pink-100">
+                        <Image src={img} alt="" fill className="object-cover" sizes="80px" />
+                        <button onClick={() => removeImage(i)} className="absolute right-1 top-1 flex h-5 w-5 items-center justify-center rounded-full bg-charcoal/70 text-white">
+                          <X className="h-3 w-3" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
                 <div className="flex flex-wrap gap-2">
-                  {form.images.map((img: string, i: number) => (
-                    <div key={i} className="relative h-20 w-20 overflow-hidden rounded-2xl border border-pink-100">
-                      <Image src={img} alt="" fill className="object-cover" />
-                      <button onClick={() => removeImage(i)} className="absolute right-1 top-1 flex h-5 w-5 items-center justify-center rounded-full bg-charcoal/70 text-white">
-                        <X className="h-3 w-3" />
-                      </button>
-                    </div>
-                  ))}
-                  <label className="flex h-20 w-20 cursor-pointer flex-col items-center justify-center rounded-2xl border-2 border-dashed border-pink-200 hover:border-pink-400">
+                  {/* File upload button */}
+                  <label className="flex h-20 w-20 cursor-pointer flex-col items-center justify-center rounded-2xl border-2 border-dashed border-pink-200 hover:border-pink-400 transition-colors">
                     {imgUploading ? <Loader2 className="h-5 w-5 animate-spin text-pink-400" /> : <ImagePlus className="h-5 w-5 text-pink-400" />}
+                    <span className="mt-1 text-[9px] text-pink-400 font-medium">Upload File</span>
                     <input type="file" accept="image/*" className="hidden"
                       onChange={e => { if (e.target.files?.[0]) uploadImage(e.target.files[0]); }} />
                   </label>
+
+                  {/* URL paste button */}
+                  <button type="button" onClick={() => setShowUrlInput(v => !v)}
+                    className="flex h-20 w-20 cursor-pointer flex-col items-center justify-center rounded-2xl border-2 border-dashed border-pink-200 hover:border-pink-400 transition-colors">
+                    <LinkIcon className="h-5 w-5 text-pink-400" />
+                    <span className="mt-1 text-[9px] text-pink-400 font-medium text-center">Paste URL</span>
+                  </button>
                 </div>
+
+                {/* URL input */}
+                {showUrlInput && (
+                  <div className="mt-2 flex gap-2">
+                    <input
+                      value={urlInput}
+                      onChange={e => setUrlInput(e.target.value)}
+                      onKeyDown={e => e.key === 'Enter' && addImageUrl()}
+                      placeholder="https://images.unsplash.com/..."
+                      className="input-field flex-1 text-xs"
+                    />
+                    <button onClick={addImageUrl} className="btn-primary px-4 text-xs py-2">Add</button>
+                  </div>
+                )}
+
+                {/* Upload error */}
+                {uploadError && (
+                  <div className="mt-2 rounded-xl bg-amber-50 border border-amber-200 p-3 text-xs text-amber-800 leading-relaxed">
+                    {uploadError}
+                  </div>
+                )}
               </div>
 
               {error && <p className="text-sm text-red-600">{error}</p>}
@@ -397,24 +412,17 @@ export default function ProductsClient() {
       {/* Quick Category Modal */}
       {catModal && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center bg-charcoal/60 p-4 backdrop-blur-sm">
-          <div className="w-full max-w-md rounded-3xl bg-white p-6 shadow-soft">
+          <div className="w-full max-w-md rounded-3xl bg-white p-6 shadow-hover">
             <div className="mb-5 flex items-center justify-between">
-              <h2 className="font-display text-lg font-bold text-charcoal">
-                {editingCat ? 'Edit Category' : 'New Category'}
-              </h2>
-              <button onClick={() => setCatModal(false)} className="rounded-xl p-2 hover:bg-pink-50">
-                <X className="h-5 w-5" />
-              </button>
+              <h2 className="font-display text-lg font-bold text-charcoal">{editingCat ? 'Edit Category' : 'New Category'}</h2>
+              <button onClick={() => setCatModal(false)} className="rounded-xl p-2 hover:bg-pink-50"><X className="h-5 w-5" /></button>
             </div>
             <div className="space-y-4">
               <div>
                 <label className="label-field">Name</label>
-                <input
-                  value={catForm.name}
+                <input value={catForm.name}
                   onChange={e => setCatForm((f: any) => ({ ...f, name: e.target.value, slug: slugify(e.target.value) }))}
-                  className="input-field" placeholder="e.g. Specialty Coffee"
-                  autoFocus
-                />
+                  className="input-field" placeholder="e.g. WKND Specials" autoFocus />
               </div>
               <div>
                 <label className="label-field">Slug</label>
@@ -434,7 +442,7 @@ export default function ProductsClient() {
               </label>
               {catError && <p className="text-sm text-red-600">{catError}</p>}
               <div className="flex gap-3">
-                <button onClick={saveCategory} disabled={savingCat} className="btn-primary flex-1">
+                <button onClick={saveCat} disabled={savingCat} className="btn-primary flex-1">
                   {savingCat && <Loader2 className="h-4 w-4 animate-spin" />}
                   {editingCat ? 'Save Category' : 'Create Category'}
                 </button>
